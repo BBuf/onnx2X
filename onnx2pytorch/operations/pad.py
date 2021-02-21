@@ -1,9 +1,7 @@
 import torch.nn.functional as F
+from torch import nn
 
-from onnx2pytorch.operations.base import Operator
-
-
-class Pad(Operator):
+class Pad(nn.Module):
     def __init__(self, mode="constant", padding=None):
         self.mode = mode
         self.padding = padding

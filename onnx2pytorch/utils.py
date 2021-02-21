@@ -33,7 +33,7 @@ def is_symmetric(params):
             return False
     return True
 
-
+# 为ConstantPad2D这种OP提取padding参数
 def extract_padding_params(params):
     """Extract padding parameters fod Pad layers."""
     pad_dim = len(params) // 2
@@ -48,12 +48,24 @@ def extract_padding_params(params):
     pads.reverse()
     return pads
 
+# 为卷积OP提取padding参数
+# >>> import torch
+# >>> x = [1, 2,3, 4]
+# >>> import numpy as np
+# >>> y = np.array(x).reshape(-1,2).T.flatten()
+# >>> print(y)
+# [1 3 2 4]
+# >>> print(y[:4])
+# [1 3 2 4]
+# >>> print(y[4:])
+# []
 
 def extract_padding_params_for_conv_layer(params):
     """
     Padding params in onnx are different than in pytorch. That is why we need to
     check if they are symmetric and cut half or return a padding layer.
     """
+    # 参数是否堆成
     if is_symmetric(params):
         return params[: len(params) // 2]
     else:
@@ -176,7 +188,7 @@ def get_activation_value(onnx_model, inputs, activation_names):
 
     return sess.run(None, inputs)
 
-
+# 获取网络所有的输入节点名字
 def get_inputs_names(onnx_model):
     param_names = set([x.name for x in onnx_model.graph.initializer])
     input_names = [x.name for x in onnx_model.graph.input]

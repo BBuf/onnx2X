@@ -1,14 +1,12 @@
 import warnings
-
 import torch
+from torch import nn
 from torch.nn import functional as F
-
-from onnx2pytorch.operations.base import Operator
 
 empty_tensor = torch.Tensor([])
 
 
-class Resize(Operator):
+class Resize(nn.Module):
     def __init__(self, mode="nearest", align_corners=None, **kwargs):
         self.mode = mode
         self.align_corners = align_corners

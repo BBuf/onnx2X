@@ -1,12 +1,10 @@
 from itertools import accumulate
-
 import torch
-
-from onnx2pytorch.operations.base import Operator
+from torch import nn
 from onnx2pytorch.utils import assign_values_to_dim
 
 
-class Split(Operator):
+class Split(nn.Module):
     def __init__(
         self, split_size_or_sections=None, number_of_splits=None, dim=0, keep_size=True
     ):

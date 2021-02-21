@@ -17,6 +17,7 @@ from onnx2pytorch.convert.operations import convert_operations
 from onnx2pytorch.utils import get_inputs_names
 
 
+# 初始化参数
 class InitParameters(dict):
     """Use for parameters that are hidden."""
 
@@ -34,7 +35,7 @@ class InitParameters(dict):
 
 class ConvertModel(nn.Module):
     def __init__(
-        self, onnx_model: onnx.ModelProto, batch_dim=0, experimental=False, debug=False
+        self, onnx_model: onnx.ModelProto, batch_dim=0, debug=False
     ):
         """
         Convert onnx model to pytorch.
@@ -45,10 +46,7 @@ class ConvertModel(nn.Module):
             Loaded onnx model.
         batch_dim: int
             Dimension of the batch.
-        experimental: bool
-            Experimental implementation allows batch_size > 1. However,
-            batchnorm layers could potentially produce false outputs.
-
+        
         Returns
         -------
         model: torch.nn.Module
@@ -57,10 +55,10 @@ class ConvertModel(nn.Module):
         super().__init__()
         self.onnx_model = onnx_model
         self.batch_dim = batch_dim
-        self.experimental = experimental
         self.debug = debug
         self.mapping = {}
         for op_id, op_name, op in convert_operations(onnx_model, batch_dim):
+            # 设置属性值，该属性不一定是存在的
             setattr(self, op_name, op)
             self.mapping[op_id] = op_name
 
@@ -70,36 +68,22 @@ class ConvertModel(nn.Module):
 
         self.input_names = get_inputs_names(onnx_model)
 
-        if experimental:
-            warnings.warn(
-                "Using experimental implementation that allows 'batch_size > 1'."
-                "Batchnorm layers could potentially produce false outputs."
-            )
-
     def forward(self, *input):
-        if not self.experimental and input[0].shape[self.batch_dim] > 1:
+        if input[0].shape[self.batch_dim] > 1:
             raise NotImplementedError(
                 "Input with larger batch size than 1 not supported yet."
             )
-        # TODO figure out how to store only necessary activations.
+
         activations = dict(zip(self.input_names, input))
 
         for node in self.onnx_model.graph.node:
-            # Identifying the layer ids and names
+            # 指明节点的id和名字            
             out_op_id = node.output[0]
             out_op_name = self.mapping[out_op_id]
-            in_op_names = [
-                self.mapping.get(in_op_id, in_op_id)
-                for in_op_id in node.input
-                if in_op_id in activations
-            ]
 
-            # getting correct layer
+            # 获取当前ONNX节点对应的Pytorch OP
             op = getattr(self, out_op_name)
 
-            # if first layer choose input as in_activations
-            # if not in_op_names and len(node.input) == 1:
-            #    in_activations = input
             layer_types = (nn.Linear, _ConvNd, _BatchNorm, _InstanceNorm)
             if isinstance(op, layer_types) or (
                 isinstance(op, nn.Sequential)
@@ -113,9 +97,7 @@ class ConvertModel(nn.Module):
             else:
                 in_activations = [
                     activations[in_op_id] if in_op_id in activations
-                    # if in_op_id not in activations neither in parameters then
-                    # it must be the initial input
-                    # TODO loading parameters in forward func might be very slow!
+                    # 如果输入节点（in_op_id）不在activations中，那么一定在initializer里面
                     else self.init_parameters.get(in_op_id, input[0])
                     for in_op_id in node.input
                 ]

@@ -1,10 +1,9 @@
 import torch
-
-from onnx2pytorch.operations.base import Operator
+from torch import nn
 from onnx2pytorch.utils import get_selection
 
 
-class Squeeze(Operator):
+class Squeeze(nn.Module):
     def __init__(self, dim=None):
         self.dim = dim
         super().__init__()

@@ -13,7 +13,6 @@ from onnx2pytorch.convert.layer import (
     convert_instance_norm_layer,
 )
 from onnx2pytorch.operations import *
-from onnx2pytorch.operations.base import OperatorWrapper
 from onnx2pytorch.operations import Resize, Upsample
 from onnx2pytorch.utils import value_wrapper
 
@@ -40,6 +39,7 @@ def convert_operations(onnx_model, batch_dim=0):
         # extract only useful inputs
         params = [weights[par_name] for par_name in node.input if par_name in weights]
 
+        print(node.op_type)
         if node.op_type == "Conv":
             op = convert_layer(node, "Conv", params)
         elif node.op_type == "Relu":
@@ -62,16 +62,15 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "InstanceNormalization":
             op = convert_instance_norm_layer(node, params=params)
         elif node.op_type == "Concat":
-            # op = partial(nn.concat, **extract_attributes(node))
             op = Concat(**extract_attributes(node))
         elif node.op_type == "Constant":
+            # 常量OP如何解决的问题
             op = value_wrapper(torch.from_numpy(extract_attributes(node)["constant"]))
         elif node.op_type == "Reshape":
             shape = list(
                 filter(lambda x: x.name == node.input[1], onnx_model.graph.initializer)
             )
             shape = numpy_helper.to_array(shape[0]) if shape else None
-            
             op = Reshape(tuple(shape))
         elif node.op_type == "Shape":
             op = Shape()
@@ -88,7 +87,7 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Cast":
             op = Cast(**extract_attributes(node))
         elif node.op_type == "Where":
-            op = torch.where
+            op = Where()
         elif node.op_type == "Equal":
             op = torch.eq
         elif node.op_type == "Mul":
@@ -115,7 +114,7 @@ def convert_operations(onnx_model, batch_dim=0):
                     node.output.extend(next_node.output)
                     onnx_model.graph.node.pop(i + 1)  # remove next node
             else:
-                op = torch.matmul
+                op = Matmul()
         elif node.op_type == "Sub":
             op = torch.sub
         elif node.op_type == "Pow":
@@ -125,7 +124,6 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Softmax":
             op = nn.Softmax(**extract_attributes(node))
         elif node.op_type == "Transpose":
-            print('233')
             op = partial(torch.Tensor.permute, **extract_attributes(node))
         elif node.op_type == "Split":
             kwargs = extract_attributes(node)
@@ -139,7 +137,7 @@ def convert_operations(onnx_model, batch_dim=0):
             kwargs.update(extract_attributes(node))
             op = partial(torch.mean, **kwargs)
         elif node.op_type == "Add":
-            op = Add()  # 0 for CV models and 1 for NLP
+            op = Add()
         elif node.op_type == "GlobalAveragePool":
             op = GlobalAveragePool()
         elif node.op_type == "ConvTranspose":
@@ -155,15 +153,15 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Pad":
             op = Pad(**extract_attributes(node))
         elif node.op_type == "Clip":
-            op = OperatorWrapper(torch.clamp)
+            op = torch.clamp
         elif node.op_type == "Tanh":
-            op = OperatorWrapper(torch.tanh)
+            op = torch.tanh
         elif node.op_type == "Erf":
-            op = OperatorWrapper(torch.erf)
+            op = torch.erf
         elif node.op_type == "Log":
-            op = OperatorWrapper(torch.log)
+            op = torch.log
         elif node.op_type == "Exp":
-            op = OperatorWrapper(torch.exp)
+            op = torch.exp
         else:
             op = getattr(torch, node.op_type.lower(), None)
             if op is None:

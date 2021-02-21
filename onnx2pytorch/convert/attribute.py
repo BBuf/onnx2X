@@ -26,7 +26,7 @@ AttributeType = dict(
     SPARSE_TENSORS=12,
 )
 
-
+# 获取ONNX节点属性的具体值
 def extract_attr_values(attr):
     """Extract onnx attribute values."""
     if attr.type == AttributeType["INT"]:
@@ -47,7 +47,7 @@ def extract_attr_values(attr):
         )
     return value
 
-
+# 提取ONNX节点的各个属性
 def extract_attributes(node):
     """Extract onnx attributes. Map onnx feature naming to pytorch."""
     kwargs = {}
@@ -123,7 +123,6 @@ def extract_attributes(node):
             kwargs[attr.name] = extract_attr_values(attr)
         elif attr.name == "auto_pad":
             value = extract_attr_values(attr)
-            print(value)
             if value == "NOTSET":
                 pass
             else:

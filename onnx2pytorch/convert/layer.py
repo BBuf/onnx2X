@@ -26,7 +26,7 @@ def load_params(layer, weight, bias):
     if bias is not None:
         layer.bias.data = torch.from_numpy(numpy_helper.to_array(bias))
 
-
+# 卷积层的转换
 def convert_layer(node, layer_type, params=None):
     """Use to convert Conv, MaxPool, AvgPool layers."""
     assert layer_type in [
@@ -72,7 +72,7 @@ def convert_layer(node, layer_type, params=None):
 
     return layer
 
-
+# BN层的转换
 def convert_batch_norm_layer(node, params):
     kwargs = extract_attributes(node)
     layer = BatchNormUnsafe  # Input dimension check missing, not possible before forward pass
@@ -86,7 +86,7 @@ def convert_batch_norm_layer(node, params):
 
     return layer
 
-
+# InstanceNorm层的转换
 def convert_instance_norm_layer(node, params):
     kwargs = extract_attributes(node)
     # Skips input dimension check, not possible before forward pass
@@ -101,7 +101,7 @@ def convert_instance_norm_layer(node, params):
 
     return layer
 
-
+# 全连接层的转换
 def convert_linear_layer(node, params):
     """Convert linear layer from onnx node and params."""
     # Default Gemm attributes
