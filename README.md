@@ -47,3 +47,6 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 - [ ] 自动生成转化后的模型代码
 - [ ] 一些部署工作，比如Keras导出的ONNX转为Pytorch模型后，二次导出ONNX递交给NCNN推理
 
+# 参考
+
+- https://github.com/ToriML/onnx2pytorch
