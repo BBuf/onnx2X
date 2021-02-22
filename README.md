@@ -11,6 +11,18 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 - README.md 
 ```
 
+# 依赖
+
+- pytorch >= 1.3.0
+- onnx
+- onnxruntime
+
+# 使用方法
+
+```sh
+python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path .\models\yolov5.pth --export_framework 0 --input_shape 1,3,640,640
+```
+
 # ONNX2Pytorch
 
 ## 已支持的ONNX OP

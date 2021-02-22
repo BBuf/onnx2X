@@ -17,5 +17,5 @@ class Reshape(nn.Module):
             pass
         elif torch.equal(self.initial_input_shape, inp_shape):
             pass
-        print(tuple(shape))
+
         return torch.reshape(input, tuple(shape))

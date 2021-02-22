@@ -39,7 +39,6 @@ def convert_operations(onnx_model, batch_dim=0):
         # extract only useful inputs
         params = [weights[par_name] for par_name in node.input if par_name in weights]
 
-        print(node.op_type)
         if node.op_type == "Conv":
             op = convert_layer(node, "Conv", params)
         elif node.op_type == "Relu":
