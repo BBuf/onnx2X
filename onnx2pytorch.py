@@ -46,7 +46,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="onnx2pytorch test")
     parser.add_argument("--onnx_path", default="", type=str, required=True)
     parser.add_argument("--pytorch_path", default="", type=str, required=True)
-    parser.add_argument("--export_framework", default=0, type=int, required=True)
     parser.add_argument("--input_shape", default="1,3,224,224", type=str, required=True)
     args = parser.parse_args()
     
@@ -57,22 +56,5 @@ if __name__ == "__main__":
     pytorch_model = args.pytorch_path
     output = get_onnx_output(onnx_model, input)
 
-    export_framework = args.export_framework
-    if export_framework == 0:
-        convert_onnx_pytorch(onnx_model, pytorch_model, output, input)
-    elif export_framework == 1:
-        raise NotImplementedError(
-                "conver tensorflow's onnx to pytorch not implemented.".format(attr.name)
-            )
-    elif export_framework == 2:
-        raise NotImplementedError(
-                "conver keras's onnx to pytorch not implemented.".format(attr.name)
-            )
-    elif export_framework == 3:
-        raise NotImplementedError(
-                "conver oneflow's onnx to pytorch not implemented.".format(attr.name)
-            )
-    else:
-        raise NotImplementedError(
-                "conver unkown's onnx to pytorch not implemented.".format(attr.name)
-            )
+    convert_onnx_pytorch(onnx_model, pytorch_model, output, input)
+    

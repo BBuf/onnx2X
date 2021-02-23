@@ -19,9 +19,24 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 
 # 使用方法
 
+使用下面的命令将各个训练框架导出的ONNX模型转换成Pytorch模型
+
 ```sh
-python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path .\models\yolov5.pth --export_framework 0 --input_shape 1,3,640,640
+python .\onnx2pytorch.py ...
 ```
+
+必选参数如下:
+
+- `--onnx_path` 字符串，代表onnx模型的路径
+- `--pytorch_path` 字符串，代表转换出的Pytorch模型保存路径
+- `--input_shape` 字符串，代表ONNX模型的输入数据维度
+
+# 使用示例
+
+```sh
+python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path .\models\yolov5.pth --input_shape 1,3,640,640
+```
+
 
 # ONNX2Pytorch
 
@@ -47,9 +62,14 @@ python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path
 
 基于ONNXRuntime和Pytorch推理之后特征值差距小于1e-7，视为转换成功
 
+### 分类模型
 - [x] ResNet18
 - [x] MobileNetV2
+
+### 检测模型
 - [x] YOLOV5-s
+
+### 分割模型
 
 # TODO
 
