@@ -17,6 +17,7 @@ from .mul import Mul
 from .concat import Concat
 from .where import Where
 from .matmul import Matmul
+from .clamp import Clamp
 
 __all__ = [
     "Add",
@@ -38,5 +39,6 @@ __all__ = [
     "Mul",
     "Concat",
     "Where",
-    "Matmul"
+    "Matmul",
+    'Clamp'
 ]

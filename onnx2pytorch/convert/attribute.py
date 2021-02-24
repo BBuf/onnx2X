@@ -61,10 +61,10 @@ def extract_attributes(node):
         elif attr.name == "pads":
             params = extract_attr_values(attr)
             if node.op_type == "Pad":
-                kwargs["padding"] = extract_padding_params(params)
+                kwargs["padding"] = extract_padding_params(node, params)
             else:
                 # Works for Conv, MaxPooling and other layers from convert_layer func
-                kwargs["padding"] = extract_padding_params_for_conv_layer(params)
+                kwargs["padding"] = extract_padding_params_for_conv_layer(node, params)
         elif attr.name == "strides":
             kwargs["stride"] = extract_attr_values(attr)
         elif attr.name == "axis" and node.op_type == "Flatten":
@@ -101,9 +101,9 @@ def extract_attributes(node):
             kwargs["transpose_activation"] = bool(extract_attr_values(attr))
         elif attr.name == "alpha" and node.op_type == "LeakyRelu":
             kwargs["negative_slope"] = extract_attr_values(attr)
-        elif attr.name == "alpha":
+        elif attr.name == "alpha" and node.op_type != "LRN":
             kwargs["weight_multiplier"] = extract_attr_values(attr)
-        elif attr.name == "beta":
+        elif attr.name == "beta" and node.op_type != "LRN":
             kwargs["bias_multiplier"] = extract_attr_values(attr)
         elif attr.name == "starts":
             kwargs["starts"] = extract_attr_values(attr)
@@ -129,6 +129,18 @@ def extract_attributes(node):
                 raise NotImplementedError(
                     "auto_pad={} functionality not implemented.".format(value)
                 )
+        elif attr.name == "alpha" and node.op_type == "LRN":
+            kwargs["alpha"] = extract_attr_values(attr)
+        elif attr.name == "beta" and node.op_type == "LRN":
+            kwargs["beta"] = extract_attr_values(attr)
+        elif attr.name == "bias" and node.op_type == "LRN":
+            kwargs["k"] = extract_attr_values(attr)
+        elif attr.name == "size" and node.op_type == "LRN":
+            kwargs["size"] = extract_attr_values(attr) - 1
+        elif attr.name == "min":
+            kwargs["min"] = extract_attr_values(attr)
+        elif attr.name == "max":
+            kwargs["max"] = extract_attr_values(attr)
         else:
             raise NotImplementedError(
                 "Extraction of attribute {} not implemented.".format(attr.name)

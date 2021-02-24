@@ -121,7 +121,7 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Sqrt":
             op = torch.sqrt
         elif node.op_type == "Softmax":
-            op = nn.Softmax(**extract_attributes(node))
+            op = nn.Softmax(dim = 1)
         elif node.op_type == "Transpose":
             op = partial(torch.Tensor.permute, **extract_attributes(node))
         elif node.op_type == "Split":
@@ -152,7 +152,7 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Pad":
             op = Pad(**extract_attributes(node))
         elif node.op_type == "Clip":
-            op = torch.clamp
+            op = Clamp(**extract_attributes(node))
         elif node.op_type == "Tanh":
             op = torch.tanh
         elif node.op_type == "Erf":
@@ -161,6 +161,10 @@ def convert_operations(onnx_model, batch_dim=0):
             op = torch.log
         elif node.op_type == "Exp":
             op = torch.exp
+        elif node.op_type == "LRN":
+            op = nn.LocalResponseNorm(**extract_attributes(node))
+        elif node.op_type == "Dropout":
+            op = nn.Dropout(p=1.0)
         else:
             op = getattr(torch, node.op_type.lower(), None)
             if op is None:

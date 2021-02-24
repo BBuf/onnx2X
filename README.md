@@ -25,16 +25,17 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 python .\onnx2pytorch.py ...
 ```
 
-必选参数如下:
+参数列表如下:
 
-- `--onnx_path` 字符串，代表onnx模型的路径
-- `--pytorch_path` 字符串，代表转换出的Pytorch模型保存路径
-- `--input_shape` 字符串，代表ONNX模型的输入数据维度
+- `--onnx_path` 字符串，必选参数，代表onnx模型的路径
+- `--pytorch_path` 字符串，必选参数，代表转换出的Pytorch模型保存路径
+- `--simplify_path` 字符串，可选参数，代表ONNX模型简化（例如删除Dropout和常量OP）后保存的ONNX模型路径
+- `--input_shape` 字符串，必选参数，代表ONNX模型的输入数据层的名字和维度信息
 
 # 使用示例
 
 ```sh
-python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path .\models\yolov5.pth --input_shape 1,3,640,640
+python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path .\models\mobilenetv2-7-simplify.onnx --pytorch_path .\models\mobilenetv2-7.pth --input_shape input:1,3,224,224
 ```
 
 
@@ -57,17 +58,21 @@ python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path
 - [x] Concat
 - [x] Resize (还有一些问题需要解决，当前版本支持固定倍数方法)
 - [x] Transpose
+- [x] LRN (注意ONNX的实现和Pytorch的实现有细微差距，所以转换之后结果有一点偏差，这体现在AlexNet上)
+- [x] Clip
 
 ## 已验证支持的模型
 
 基于ONNXRuntime和Pytorch推理之后特征值差距小于1e-7，视为转换成功
 
 ### 分类模型
-- [x] ResNet18
-- [x] MobileNetV2
+- [x] resnet50-v2-7.onnx
+- [x] mobilenetv2-7.onnx
+- [x] bvlcalexnet-9.onnx（由于ONNX和Pytorch在实现上有差距，所以结果有一定偏差，不建议使用AlexNet模型）
+
 
 ### 检测模型
-- [x] YOLOV5-s
+- [x] yolov5s-simple.onnx
 
 ### 分割模型
 
@@ -75,10 +80,11 @@ python .\onnx2pytorch.py --onnx_path .\models\yolov5s-simple.onnx --pytorch_path
 
 - [ ] TensorFlow导出的ONNX转为指定框架（{Pytorch/OneFlow）
 - [ ] Keras导出的ONNX转为指定框架（Pytorch/OneFlow）
-- [ ] 结合onnx-simplifier简化模型
+- [x] 结合onnx-simplifier简化模型
 - [ ] 自动生成转化后的模型代码
 - [ ] 一些部署工作，比如Keras导出的ONNX转为Pytorch模型后，二次导出ONNX递交给NCNN推理
 
-# 参考
+# 相关链接
 
 - https://github.com/ToriML/onnx2pytorch
+- https://github.com/daquexian/onnx-simplifier
