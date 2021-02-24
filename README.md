@@ -58,18 +58,19 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [x] Concat
 - [x] Resize (还有一些问题需要解决，当前版本支持固定倍数方法)
 - [x] Transpose
-- [x] LRN (注意ONNX的实现和Pytorch的实现有细微差距，所以转换之后结果有一点偏差，这体现在AlexNet上)
+- [x] LRN
 - [x] Clip
+- [x] Pad2d
 
 ## 已验证支持的模型
 
-基于ONNXRuntime和Pytorch推理之后特征值差距小于1e-7，视为转换成功
+基于ONNXRuntime和Pytorch推理之后特征值mse小于1e-7，视为转换成功
 
 ### 分类模型
 - [x] resnet50-v2-7.onnx
 - [x] mobilenetv2-7.onnx
-- [x] bvlcalexnet-9.onnx（由于ONNX和Pytorch在实现上有差距，所以结果有一定偏差，不建议使用AlexNet模型）
-
+- [x] bvlcalexnet-9.onnx
+- [x] googlenet-9.onnx
 
 ### 检测模型
 - [x] yolov5s-simple.onnx

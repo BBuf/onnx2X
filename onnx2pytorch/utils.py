@@ -16,43 +16,6 @@ def value_wrapper(value):
 
     return callback
 
-AttributeType = dict(
-    UNDEFINED=0,
-    FLOAT=1,
-    INT=2,
-    STRING=3,
-    TENSOR=4,
-    GRAPH=5,
-    SPARSE_TENSOR=11,
-    FLOATS=6,
-    INTS=7,
-    STRINGS=8,
-    TENSORS=9,
-    GRAPHS=10,
-    SPARSE_TENSORS=12,
-)
-
-# 获取ONNX节点属性的具体值
-def extract_attr_values(attr):
-    """Extract onnx attribute values."""
-    if attr.type == AttributeType["INT"]:
-        value = attr.i
-    elif attr.type == AttributeType["FLOAT"]:
-        value = attr.f
-    elif attr.type == AttributeType["INTS"]:
-        value = tuple(attr.ints)
-    elif attr.type == AttributeType["FLOATS"]:
-        value = tuple(attr.floats)
-    elif attr.type == AttributeType["TENSOR"]:
-        value = numpy_helper.to_array(attr.t)
-    elif attr.type == AttributeType["STRING"]:
-        value = attr.s.decode()
-    else:
-        raise NotImplementedError(
-            "Extraction of attribute type {} not implemented.".format(attr.type)
-        )
-    return value
-
 def is_constant(value):
     return value.ndim == 0 or value.shape == torch.Size([1])
 
@@ -70,7 +33,7 @@ def is_symmetric(params):
     return True
 
 # 为ConstantPad2D这种OP提取padding参数
-def extract_padding_params(node, params):
+def extract_padding_params(params):
     """Extract padding parameters fod Pad layers."""
     pad_dim = len(params) // 2
     pads = np.array(params).reshape(-1, pad_dim).T.flatten()  # .tolist()
@@ -96,7 +59,7 @@ def extract_padding_params(node, params):
 # >>> print(y[4:])
 # []
 
-def extract_padding_params_for_conv_layer(node, params):
+def extract_padding_params_for_conv_layer(params):
     """
     Padding params in onnx are different than in pytorch. That is why we need to
     check if they are symmetric and cut half or return a padding layer.
@@ -105,14 +68,8 @@ def extract_padding_params_for_conv_layer(node, params):
     if is_symmetric(params):
         return params[: len(params) // 2]
     else:
-        for attr in node.attribute:
-            if attr.name == "kernel_shape":
-                kernel_shape = extract_attr_values(attr)
-        pad_x = params[2] - params[0]
-        pad_y = params[3] - params[1]
-        pad_x = min(pad_x, kernel_shape[0] // 2)
-        pad_y = min(pad_y, kernel_shape[1] // 2)
-        return (pad_x, pad_y)
+        pads = extract_padding_params(params)[::-1]
+        return pads
 
 
 def get_selection(indices, dim):

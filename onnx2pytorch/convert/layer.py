@@ -68,8 +68,15 @@ def convert_layer(node, layer_type, params=None):
             layer = nn.Sequential(pad_layer, layer)
     else:
         # initialize operations without parameters (MaxPool, AvgPool, etc.)
-        layer = layer(**kwargs)
-
+        print(node.op_type)
+        print(kwargs["padding"])
+        if(len(kwargs["padding"]) == 2):
+            layer = layer(**kwargs)
+        else:
+            pad_layer = nn.ConstantPad2d(kwargs["padding"], 0.0)
+            kwargs["padding"] = (0, 0)
+            layer = layer(**kwargs)
+            layer = nn.Sequential(pad_layer, layer)
     return layer
 
 # BN层的转换

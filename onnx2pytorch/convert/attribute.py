@@ -61,10 +61,10 @@ def extract_attributes(node):
         elif attr.name == "pads":
             params = extract_attr_values(attr)
             if node.op_type == "Pad":
-                kwargs["padding"] = extract_padding_params(node, params)
+                kwargs["padding"] = extract_padding_params(params)
             else:
                 # Works for Conv, MaxPooling and other layers from convert_layer func
-                kwargs["padding"] = extract_padding_params_for_conv_layer(node, params)
+                kwargs["padding"] = extract_padding_params_for_conv_layer(params)
         elif attr.name == "strides":
             kwargs["stride"] = extract_attr_values(attr)
         elif attr.name == "axis" and node.op_type == "Flatten":
@@ -136,7 +136,7 @@ def extract_attributes(node):
         elif attr.name == "bias" and node.op_type == "LRN":
             kwargs["k"] = extract_attr_values(attr)
         elif attr.name == "size" and node.op_type == "LRN":
-            kwargs["size"] = extract_attr_values(attr) - 1
+            kwargs["size"] = extract_attr_values(attr)
         elif attr.name == "min":
             kwargs["min"] = extract_attr_values(attr)
         elif attr.name == "max":
