@@ -61,6 +61,8 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [x] LRN
 - [x] Clip
 - [x] Pad2d
+- [x] Split
+- [x] ReduceMean
 
 ## 已验证支持的模型
 
@@ -71,6 +73,8 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [x] mobilenetv2-7.onnx
 - [x] bvlcalexnet-9.onnx
 - [x] googlenet-9.onnx
+- [x] squeezenet1.1-7.onnx
+- [x] shufflenet-v2-10.onnx
 
 ### 检测模型
 - [x] yolov5s-simple.onnx

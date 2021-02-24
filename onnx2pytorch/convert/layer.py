@@ -68,8 +68,6 @@ def convert_layer(node, layer_type, params=None):
             layer = nn.Sequential(pad_layer, layer)
     else:
         # initialize operations without parameters (MaxPool, AvgPool, etc.)
-        print(node.op_type)
-        print(kwargs["padding"])
         if(len(kwargs["padding"]) == 2):
             layer = layer(**kwargs)
         else:
