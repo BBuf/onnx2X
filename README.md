@@ -7,7 +7,7 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 ```markdown
 - onnx2pytorch onnx转pytorch代码实现
 - onnx2pytorch.py onnx转pytorch测试代码
-- download_models.sh 下载ONNX官方提供的各种模型脚本
+- convert_models.sh 转换ONNX Model Zoo里面的模型对应的命令
 - README.md 
 ```
 
@@ -87,7 +87,6 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [ ] TensorFlow导出的ONNX转为指定框架（{Pytorch/OneFlow）
 - [ ] Keras导出的ONNX转为指定框架（Pytorch/OneFlow）
 - [x] 结合onnx-simplifier简化模型
-- [ ] 自动生成转化后的模型代码
 - [ ] 一些部署工作，比如Keras导出的ONNX转为Pytorch模型后，二次导出ONNX递交给NCNN推理
 
 # 相关链接

@@ -26,7 +26,7 @@ def load_params(layer, weight, bias):
     if bias is not None:
         layer.bias.data = torch.from_numpy(numpy_helper.to_array(bias))
 
-# 卷积层的转换
+# 卷积/反卷积/池化层的转换
 def convert_layer(node, layer_type, params=None):
     """Use to convert Conv, MaxPool, AvgPool layers."""
     assert layer_type in [
