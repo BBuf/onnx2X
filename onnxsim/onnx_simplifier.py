@@ -1,6 +1,7 @@
 from collections import OrderedDict
+from functools import reduce
 
-from typing import List, Dict, Union, Optional, Tuple, Sequence
+from typing import Callable, List, Dict, Union, Optional, Tuple, Sequence, TypeVar
 import copy
 
 import onnx  # type: ignore
@@ -11,9 +12,13 @@ import onnxruntime as rt  # type: ignore
 import onnxoptimizer  # type: ignore
 
 import numpy as np  # type: ignore
+import os
+import sys
 
+Tensors = Dict[str, np.ndarray]
 TensorShape = List[int]
-TensorShapes = Dict[Optional[str], TensorShape]
+TensorShapes = Dict[str, TensorShape]
+TensorShapesWithOptionalKey = Dict[Optional[str], TensorShape]
 
 
 def add_features_to_output(m: onnx.ModelProto, nodes: List[onnx.NodeProto]) -> None:
@@ -22,7 +27,6 @@ def add_features_to_output(m: onnx.ModelProto, nodes: List[onnx.NodeProto]) -> N
     :param m: the model that will be run in ONNX Runtime
     :param nodes: nodes whose outputs will be added into the graph outputs
     """
-    # ONNX模型的graph扩展输出节点，获取所有静态OP的输出和原始输出节点的输出
     for node in nodes:
         for output in node.output:
             m.graph.output.extend([onnx.ValueInfoProto(name=output)])
@@ -74,42 +78,70 @@ def get_np_type_from_elem_type(elem_type: int) -> np.dtype:
     return size
 
 
+def get_inputs(model: onnx.ModelProto) -> List[onnx.ValueInfoProto]:
+    initializer_names = [x.name for x in model.graph.initializer]
+    return [ipt for ipt in model.graph.input if ipt.name not in initializer_names]
+
+
 def get_input_names(model: onnx.ModelProto) -> List[str]:
-    input_names = list(set([ipt.name for ipt in model.graph.input]) -
-                       set([x.name for x in model.graph.initializer]))
+    input_names = [ipt.name for ipt in get_inputs(model)]
     return input_names
 
 
-def generate_rand_input(model, input_shapes: Optional[TensorShapes] = None):
+def generate_specific_rand_input(model, input_shapes: TensorShapes):
+    """
+    Only generate rand inputs whose shape in `input_shapes`
+    """
+
+    for key, shape in input_shapes.items():
+        if not np.all(np.array(shape) > 0):
+            raise RuntimeError(
+                'The shape of input "{}" has dynamic size "{}", '
+                'please determine the input size manually by '
+                '"--dynamic-input-shape --input-shape xxx" or "--input-shape xxx". '
+                'Run "python3 -m onnxsim -h" for details'.format(key, shape))
+
+    inputs = {ipt: np.array(np.random.rand(*input_shapes[ipt]),
+                            dtype=get_np_type_from_elem_type(get_elem_type(model, ipt))) for ipt in
+              input_shapes}
+    return inputs
+
+
+def generate_all_rand_input(model, input_shapes: Optional[TensorShapes] = None):
+    """
+    Generate random array for all inputs of a model
+    """
     if input_shapes is None:
         input_shapes = {}
     input_names = get_input_names(model)
     full_input_shapes = {ipt: get_shape(model, ipt) for ipt in input_names}
     assert None not in input_shapes
     full_input_shapes.update(input_shapes)  # type: ignore
-    for key in full_input_shapes:
-        if np.prod(full_input_shapes[key]) <= 0:
-            raise RuntimeError(
-                'The shape of input "{}" has dynamic size, '
-                'please determine the input size manually by --input-shape xxx'.format(key))
-
-    inputs = {ipt: np.array(np.random.rand(*full_input_shapes[ipt]),
-                            dtype=get_np_type_from_elem_type(get_elem_type(model, ipt))) for ipt in
-              input_names}
-    return inputs
+    return generate_specific_rand_input(model, full_input_shapes)
 
 
-def get_constant_nodes(m: onnx.ModelProto) -> List[onnx.NodeProto]:
+def is_non_deterministic_node(node: onnx.NodeProto) -> bool:
+    # TODO: handle node with subgraph
+    return node.op_type in ['RandomNormal', 'RandomNormalLike', 'RandomUniform', 'RandomUniformLike']
+
+
+def is_non_deterministic_model(model: onnx.ModelProto) -> bool:
+    return any([is_non_deterministic_node(node) for node in model.graph.node])
+
+
+def get_constant_nodes(m: onnx.ModelProto, dynamic_input_shape: bool = False) -> List[onnx.NodeProto]:
     const_nodes = []
-    # 如果节点的name在ONNX的GraphProto的initizlizer数组里面，它就是静态的tensor
     const_tensors = [x.name for x in m.graph.initializer]
-    # 显示的常量OP也加进来
     const_tensors.extend([node.output[0]
                           for node in m.graph.node if node.op_type == 'Constant'])
-    # 一些节点的输出shape是由输入节点决定的，我们认为这个节点的输出shape并不是常量，
-    # 所以我们不需要简化这种节点
+
+    # The output shape of some node types is determined by the input value
+    # we consider the output of this node doesn't have constant shape,
+    # so we do not simplify a such node even if the node is Shape op
     dynamic_tensors = []
-    # 判断是否为动态OP
+    if dynamic_input_shape:
+        dynamic_tensors.extend(get_input_names(m))
+
     def is_dynamic(node):
         if node.op_type in ['NonMaxSuppression', 'NonZero', 'Unique'] and node.input[0] not in const_tensors:
             return True
@@ -118,31 +150,62 @@ def get_constant_nodes(m: onnx.ModelProto) -> List[onnx.NodeProto]:
         if node.op_type in ['Resize'] and ((len(node.input) > 2 and node.input[2] not in const_tensors) or (len(node.input) > 3 and node.input[3] not in const_tensors)):
             return True
         return False
+
+    def has_subgraph_in_node(node: onnx.NodeProto):
+        for attr in node.attribute:
+            if attr.type in [onnx.AttributeProto.GRAPH, onnx.AttributeProto.GRAPHS]:
+                return True
+        return False
+
     for node in m.graph.node:
         if any(x in dynamic_tensors for x in node.input):
             dynamic_tensors.extend(node.output)
+        # Note "elif" here, only Shape op with non-dynamic input will be seen as const node
         elif node.op_type == 'Shape':
             const_nodes.append(node)
             const_tensors.extend(node.output)
         elif is_dynamic(node):
             dynamic_tensors.extend(node.output)
-        elif all([x in const_tensors for x in node.input]):
+        elif has_subgraph_in_node(node):
+            # Skip this node if this node has subgraph in it
+            # "If" node with const cond will be eliminated by onnxoptimizer
+            pass
+        elif all([x in const_tensors for x in node.input]) and not is_non_deterministic_node(node):
             const_nodes.append(node)
             const_tensors.extend(node.output)
-    # 深拷贝
     return copy.deepcopy(const_nodes)
 
 
-def forward(model, inputs=None, input_shapes: Optional[TensorShapes] = None) -> Dict[str, np.ndarray]:
+def forward(model,
+            input_data: Optional[Tensors] = None,
+            input_shapes: Optional[TensorShapes] = None,
+            custom_lib: Optional[str] = None) -> Tensors:
     if input_shapes is None:
         input_shapes = {}
     sess_options = rt.SessionOptions()
+    if custom_lib is not None:
+        if os.path.exists(custom_lib):
+            sess_options.register_custom_ops_library(custom_lib)
+        else:
+            print("No such file '{}'".format(custom_lib), file=sys.stderr)
+            exit(1)
     sess_options.graph_optimization_level = rt.GraphOptimizationLevel(0)
     sess_options.log_severity_level = 3
     sess = rt.InferenceSession(model.SerializeToString(
     ), sess_options=sess_options, providers=['CPUExecutionProvider'])
-    if inputs is None:
-        inputs = generate_rand_input(model, input_shapes=input_shapes)
+
+    input_names = get_input_names(model)
+    inputs = {}
+    for name in input_names:
+        if input_data is not None and input_data.get(name, None) is not None:
+            inputs[name] = input_data[name]
+        else:
+            if input_shapes is not None and input_shapes.get(name, None) is not None:
+                shape = input_shapes[name]
+            else:
+                shape = get_shape(model, name)
+            inputs.update(generate_specific_rand_input(model, {name: shape}))
+
     outputs = [x.name for x in sess.get_outputs()]
     run_options = rt.RunOptions()
     run_options.log_severity_level = 3
@@ -151,14 +214,19 @@ def forward(model, inputs=None, input_shapes: Optional[TensorShapes] = None) -> 
     return res
 
 
-def forward_for_node_outputs(model: onnx.ModelProto, nodes: List[onnx.NodeProto],
-                             input_shapes: Optional[TensorShapes] = None) -> Dict[str, np.ndarray]:
+def forward_for_node_outputs(model: onnx.ModelProto,
+                             nodes: List[onnx.NodeProto],
+                             input_shapes: Optional[TensorShapes] = None,
+                             input_data: Optional[Tensors] = None,
+                             custom_lib: Optional[str] = None) -> Tensors:
     if input_shapes is None:
         input_shapes = {}
     model = copy.deepcopy(model)
-    # nodes 是Graph中所有的静态OP
     add_features_to_output(model, nodes)
-    res = forward(model, input_shapes=input_shapes)
+    res = forward(model,
+                  input_data=input_data,
+                  input_shapes=input_shapes,
+                  custom_lib=custom_lib)
     return res
 
 
@@ -170,12 +238,12 @@ def insert_elem(repeated_container, index: int, element):
 
 
 def eliminate_const_nodes(model: onnx.ModelProto, const_nodes: List[onnx.NodeProto],
-                          res: Dict[str, np.ndarray]) -> onnx.ModelProto:
+                          res: Tensors) -> onnx.ModelProto:
     """
-    :model参数: 原始ONNX模型
-    :const_nodes参数: 使用`get_constant_nodes`获得的静态OP
-    :res参数: 包含所有输出Tensor的字典
-    :return: 简化后的模型. 所有冗余操作都已删除.
+    :param model: the original onnx model
+    :param const_nodes: const nodes detected by `get_constant_nodes`
+    :param res: The dict containing all tensors, got by `forward_all`
+    :return: the simplified onnx model. Redundant ops are all removed.
     """
     for i, node in enumerate(model.graph.node):
         if node in const_nodes:
@@ -200,29 +268,16 @@ def eliminate_const_nodes(model: onnx.ModelProto, const_nodes: List[onnx.NodePro
 
 def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Optional[Sequence[str]]) -> onnx.ModelProto:
     """
-    :model参数: 待优化的ONXX模型.
-    :return: 优化之后的ONNX模型.
-    简化之前, 使用这个方法产生会在'forward_all'用到的ValueInfo
-    简化之后，使用这个方法去折叠前一步产生的常量到initializer中并且消除没被使用的常量
+    :param model: The onnx model.
+    :return: The optimized onnx model.
+    Before simplifying, use this method to generate value_info, which is used in `forward_all`
+    After simplifying, use this method to fold constants generated in previous step into initializer,
+    and eliminate unused constants.
     """
 
     onnx.checker.check_model(model)
     onnx.helper.strip_doc_string(model)
-    optimizers_list = [
-        'eliminate_deadend',
-        'eliminate_nop_dropout',
-        'eliminate_nop_cast',
-        'eliminate_nop_monotone_argmax', 'eliminate_nop_pad',
-        'extract_constant_to_initializer', 'eliminate_unused_initializer',
-        'eliminate_nop_transpose',
-        'eliminate_nop_flatten', 'eliminate_identity',
-        'fuse_add_bias_into_conv',
-        'fuse_consecutive_concats',
-        'fuse_consecutive_log_softmax',
-        'fuse_consecutive_reduce_unsqueeze', 'fuse_consecutive_squeezes',
-        'fuse_consecutive_transposes', 'fuse_matmul_add_bias_into_gemm',
-        'fuse_pad_into_conv', 'fuse_transpose_into_gemm', 'eliminate_duplicate_initializer'
-    ]
+    optimizers_list = onnxoptimizer.get_fuse_and_elimination_passes()
     if not skip_fuse_bn:
         optimizers_list.append('fuse_bn_into_conv')
     if skipped_optimizers is not None:
@@ -251,11 +306,17 @@ def check(model_opt: onnx.ModelProto, model_ori: onnx.ModelProto, n_times: int =
     if input_shapes is None:
         input_shapes = {}
     onnx.checker.check_model(model_opt)
+
+    if is_non_deterministic_model(model_ori) and n_times > 0:
+        print("The model has random ops like RandomNormal. Skip checking..")
+        n_times = 0
+
     for i in range(n_times):
         print("Checking {}/{}...".format(i, n_times))
-        rand_input = generate_rand_input(model_opt, input_shapes=input_shapes)
-        res_opt = forward(model_opt, inputs=rand_input)
-        res_ori = forward(model_ori, inputs=rand_input)
+        rand_input = generate_all_rand_input(
+            model_opt, input_shapes=input_shapes)
+        res_opt = forward(model_opt, input_data=rand_input)
+        res_ori = forward(model_ori, input_data=rand_input)
 
         for name in res_opt.keys():
             if not np.allclose(res_opt[name], res_ori[name], rtol=1e-4, atol=1e-5):
@@ -271,7 +332,7 @@ def check(model_opt: onnx.ModelProto, model_ori: onnx.ModelProto, n_times: int =
     return True
 
 
-def clean_constant_nodes(const_nodes: List[onnx.NodeProto], res: Dict[str, np.ndarray]):
+def clean_constant_nodes(const_nodes: List[onnx.NodeProto], res: Tensors):
     """
     It seems not needed since commit 6f2a72, but maybe it still prevents some unknown bug
     :param const_nodes: const nodes detected by `get_constant_nodes`
@@ -281,7 +342,7 @@ def clean_constant_nodes(const_nodes: List[onnx.NodeProto], res: Dict[str, np.nd
     return [node for node in const_nodes if node.output[0] in res]
 
 
-def check_and_update_input_shapes(model: onnx.ModelProto, input_shapes: TensorShapes) -> TensorShapes:
+def check_and_update_input_shapes(model: onnx.ModelProto, input_shapes: TensorShapesWithOptionalKey) -> TensorShapes:
     input_names = get_input_names(model)
     if None in input_shapes:
         if len(input_names) == 1:
@@ -294,7 +355,7 @@ def check_and_update_input_shapes(model: onnx.ModelProto, input_shapes: TensorSh
         if x not in input_names:
             raise RuntimeError(
                 'The model doesn\'t have input named "{}"'.format(x))
-    return input_shapes
+    return input_shapes  # type: ignore
 
 
 def infer_shapes(model: onnx.ModelProto) -> onnx.ModelProto:
@@ -305,46 +366,128 @@ def infer_shapes(model: onnx.ModelProto) -> onnx.ModelProto:
     return model
 
 
-def simplify(model: Union[str, onnx.ModelProto], check_n: int = 0, perform_optimization: bool = True,
-             skip_fuse_bn: bool = False, input_shapes: Optional[TensorShapes] = None, skipped_optimizers: Optional[Sequence[str]] = None, skip_shape_inference=False) \
-        -> Tuple[onnx.ModelProto, bool]:
+T = TypeVar('T')
+
+
+def fixed_point(x: T, func_a: Callable[[T], T], func_b: Callable[[T], T]) -> T:
+    """
+    Run `func_a` and `func_b` on `x` until func_b(func_a(x)) == x
+    :param x: 
+    :param func_a: A function satisfying func_a(func_a(x)) == func_a(x)
+    :param func_b: A function satisfying func_b(func_b(x)) == func_b(x)
+    :return: the x that satisfies func_b(func_a(x)) == x
+    """
+    x = func_a(x)
+    x = func_b(x)
+    while True:
+        y = func_a(x)
+        if y == x:
+            # Since func_b(func_b(x)) == func_b(x),
+            # we are already at the fixed point if
+            # `y == x`
+            return x
+        x = y
+        y = func_b(x)
+        if y == x:
+            return x
+        x = y
+
+
+def simplify(model: Union[str, onnx.ModelProto],
+             check_n: int = 0,
+             perform_optimization: bool = True,
+             skip_fuse_bn: bool = False,
+             input_shapes: Optional[TensorShapesWithOptionalKey] = None,
+             skipped_optimizers: Optional[Sequence[str]] = None,
+             skip_shape_inference=False,
+             input_data: Optional[Tensors] = None,
+             dynamic_input_shape: bool = False,
+             custom_lib: Optional[str] = None) -> Tuple[onnx.ModelProto, bool]:
+    """
+    :param model: onnx ModelProto object or file path
+    :param check_n: The simplified model will be checked for `check_n` times by random inputs
+    :param perform_optimization: Whether to run onnx optimizer on the model
+    :param skip_fuse_bn: Skip fuse_bn_into_conv onnx optimizer
+    :param input_shapes: If the model has dynamic input shape, user must pass a fixed input shape 
+            for generating random inputs and checking equality. (Also see "dynamic_input_shape" param)
+    :param skipped_optimizers: Skip some specific onnx optimizers
+    :param skip_shape_inference: Skip shape inference (sometimes shape inference will crash)
+    :param input_data: Feed custom input data for checking if needed
+    :param dynamic_input_shape: Indicates whether the input shape should be dynamic. Note that
+            input_shapes is also needed even if dynamic_input_shape is True,
+            the value of input_shapes will be used when generating random inputs for checking equality.
+            If 'dynamic_input_shape' is False, the input shape in simplified model will be overwritten
+            by the value of 'input_shapes' param.
+    :param custom_lib: onnxruntime custom ops's shared library
+    :return: A tuple (simplified model, success(True) or failed(False))
+    """
     if input_shapes is None:
         input_shapes = {}
+    if input_data is None:
+        input_data = {}
+
     if type(model) == str:
-        # 加载ONNX模型
         model = onnx.load(model)
-    # 检查ONNX模型格式是否正确，图结构是否完整，节点是否正确等
+    assert(isinstance(model, onnx.ModelProto))
     onnx.checker.check_model(model)
-    # 深拷贝一份原始ONNX模型
     model_ori = copy.deepcopy(model)
-    if not skip_shape_inference:
-        # 获取ONNX模型中特征图的尺寸
-        model = infer_shapes(model)
 
-    # 检查核对输入节点
-    input_shapes = check_and_update_input_shapes(model, input_shapes)
+    input_names = get_input_names(model)
+    for input_name, data in input_data.items():
+        if input_name not in input_names:
+            raise RuntimeError(
+                'The model doesn\'t have input named "{}"'.format(input_name))
 
-    if perform_optimization:
-        # 模型优化
-        model = optimize(model, skip_fuse_bn, skipped_optimizers)
-    # 获取模型的常量OP
-    const_nodes = get_constant_nodes(model)
-    # 获取所有的常量OP以及原始输出OP的特征值
-    res = forward_for_node_outputs(
-        model, const_nodes, input_shapes=input_shapes)
-    # 清洗那些没有被onnxruntime推理的静态节点
-    const_nodes = clean_constant_nodes(const_nodes, res)
-    # 移除常量OP，获得简化后的ONNX模型
-    model = eliminate_const_nodes(model, const_nodes, res)
+        shape = list(input_data[input_name].shape)
 
-    onnx.checker.check_model(model)
+        # special case for single constant variables (with shape [])
+        if len(shape) == 0:
+            shape = [input_data[input_name].size]
+        if input_name in input_shapes and shape != input_shapes[input_name]:
+            raise RuntimeError('The shape of input_data[{}] is not the same with input_shape[{}]'.format(
+                input_name, input_name))
+        elif input_name not in input_shapes:
+            input_shapes[input_name] = shape
 
-    if not skip_shape_inference:
-        # 获取新的ONNX模型中特征图的尺寸
-        model = infer_shapes(model)
-    if perform_optimization:
-        # 再执行一次优化，就会将所有的常量节点删除掉
-        model = optimize(model, skip_fuse_bn, skipped_optimizers)
-    check_ok = check(model_ori, model, check_n, input_shapes=input_shapes)
+    updated_input_shapes = check_and_update_input_shapes(model, input_shapes)
+
+    def infer_shapes_and_optimize(model: onnx.ModelProto) -> onnx.ModelProto:
+        def infer_shapes_if_applicable(model: onnx.ModelProto) -> onnx.ModelProto:
+            if not skip_shape_inference:
+                model = infer_shapes(model)
+            return model
+
+        def optimize_if_applicable(model: onnx.ModelProto) -> onnx.ModelProto:
+            if perform_optimization:
+                model = optimize(model, skip_fuse_bn, skipped_optimizers)
+            return model
+
+        return fixed_point(model, infer_shapes_if_applicable, optimize_if_applicable)
+
+    def constant_folding(model: onnx.ModelProto) -> onnx.ModelProto:
+        const_nodes = get_constant_nodes(
+            model, dynamic_input_shape=dynamic_input_shape)
+        res = forward_for_node_outputs(model,
+                                       const_nodes,
+                                       input_shapes=updated_input_shapes,
+                                       input_data=input_data,
+                                       custom_lib=custom_lib)
+        const_nodes = clean_constant_nodes(const_nodes, res)
+        model = eliminate_const_nodes(model, const_nodes, res)
+        onnx.checker.check_model(model)
+        return model
+
+    model = fixed_point(model, infer_shapes_and_optimize, constant_folding)
+
+    # Overwrite model input shape
+    if not dynamic_input_shape:
+        for name, input_shape in updated_input_shapes.items():
+            for ipt in model.graph.input:
+                if ipt.name == name:
+                    for i, dim in enumerate(ipt.type.tensor_type.shape.dim):
+                        dim.dim_value = input_shape[i]
+
+    check_ok = check(model_ori, model, check_n,
+                     input_shapes=updated_input_shapes)
 
     return model, check_ok

@@ -11,11 +11,12 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 - README.md 
 ```
 
-# 依赖
+# 运行环境
 
-- pytorch >= 1.3.0
-- onnx
-- onnxruntime
+- pytorch >= 1.1.0
+- onnx>=1.8.1
+- onnxruntime>=1.6.0
+- onnxoptimizer>=0.2.3
 
 # 使用方法
 
