@@ -69,12 +69,25 @@ def convert_layer(node, layer_type, params=None):
     else:
         # initialize operations without parameters (MaxPool, AvgPool, etc.)
         if(len(kwargs["padding"]) == 2):
+            if node.op_type == "AveragePool":
+                kwargs["count_include_pad"] = False
             layer = layer(**kwargs)
         else:
-            pad_layer = nn.ConstantPad2d(kwargs["padding"], 0.0)
-            kwargs["padding"] = (0, 0)
-            layer = layer(**kwargs)
-            layer = nn.Sequential(pad_layer, layer)
+            if node.op_type == "AveragePool":
+                kernel_size_x = kwargs["kernel_size"][0]
+                kernel_size_y = kwargs["kernel_size"][1]
+                pad_x = kwargs["padding"][1]
+                pad_y = kwargs["padding"][3]
+                kernel_size_x -= pad_x
+                kernel_size_y -= pad_y
+                kwargs["padding"] = (0, 0)
+                kwargs["kernel_size"] = (kernel_size_x, kernel_size_y)
+                layer = layer(**kwargs)
+            else:
+                pad_layer = nn.ConstantPad2d(kwargs["padding"], 0.0)
+                kwargs["padding"] = (0, 0)
+                layer = layer(**kwargs)
+                layer = nn.Sequential(pad_layer, layer)
     return layer
 
 # BN层的转换

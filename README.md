@@ -7,7 +7,7 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 ```markdown
 - onnx2pytorch onnx转pytorch代码实现
 - onnx2pytorch.py onnx转pytorch测试代码
-- convert_models.sh 转换ONNX Model Zoo里面的模型对应的命令
+- convert_models.md 转换ONNX Model Zoo里面的模型对应的命令和结果记录
 - README.md 
 ```
 
@@ -46,7 +46,8 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 
 - [x] Conv
 - [x] BatchNormalization
-- [x] GlobalAveragePool
+- [x] GlobalAvgragePool
+- [x] AvgPool
 - [x] MaxPool
 - [x] BatchNorm
 - [x] Flatten
@@ -70,12 +71,17 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 基于ONNXRuntime和Pytorch推理之后特征值mse小于1e-7，视为转换成功
 
 ### 分类模型
+- [x] zfnet512-9.onnx
 - [x] resnet50-v2-7.onnx
 - [x] mobilenetv2-7.onnx
+- [x] mobilenetv2-1.0.onnx
 - [x] bvlcalexnet-9.onnx
 - [x] googlenet-9.onnx
 - [x] squeezenet1.1-7.onnx
 - [x] shufflenet-v2-10.onnx
+- [x] inception-v1-9.onnx
+- [x] inception-v2-9.onnx
+- [x] vgg19-caffe2-9.onnx
 
 ### 检测模型
 - [x] yolov5s-simple.onnx

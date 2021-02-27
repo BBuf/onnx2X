@@ -19,4 +19,7 @@ def debug_model_conversion(onnx_model, inputs, pred_act, node, rtol=1e-3, atol=1
     else:
         a = torch.from_numpy(exp_act[0])
         b = pred_act
+        if torch.allclose(a, b, rtol=rtol, atol=atol) == False:
+            print(node.input[0])
+            print(node.op_type)
         assert torch.allclose(a, b, rtol=rtol, atol=atol)
