@@ -94,9 +94,8 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 
 # TODO
 
-- [ ] TensorFlow导出的ONNX转为指定框架（{Pytorch/OneFlow）
-- [ ] Keras导出的ONNX转为指定框架（Pytorch/OneFlow）
-- [x] 结合onnx-simplifier简化模型
+- [ ] 支持更多模型
+- [ ] 重构工程，并解决某些模型转为Pytorch模型之后Netron可视化看不到某些OP的问题
 - [ ] 一些部署工作，比如Keras导出的ONNX转为Pytorch模型后，二次导出ONNX递交给NCNN推理
 
 # 相关链接
