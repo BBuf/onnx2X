@@ -116,15 +116,14 @@ class ConvertModel(nn.Module):
                 activations[out_op_id] = op(*in_activations)
 
             if self.debug:
-                # compare if the activations of pytorch are the same as from onnxruntime
+                # 如果启用debug模式，会比较每一个OP的特征值通过Pytorch和ONNXRuntime推理之后是否完全一样
                 debug_model_conversion(
                     self.onnx_model,
                     [activations[x] for x in self.input_names],
                     activations[out_op_id],
                     node,
                 )
-
-        # collect all outputs
+        
         outputs = [activations[x.name] for x in self.onnx_model.graph.output]
         if len(outputs) == 1:
             outputs = outputs[0]

@@ -42,7 +42,7 @@ def get_onnx_output(onnx_model, onnx_inputs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="onnx2pytorch test")
     parser.add_argument("--onnx_path", default="", type=str, required=True)
-    parser.add_argument("--simplify_path", default="", type=str, required=False)
+    parser.add_argument("--simplify_path", default="", type=str, required=True)
     parser.add_argument("--pytorch_path", default="", type=str, required=True)
     parser.add_argument("--input_shape", default="input:1,3,224,224", type=str, required=True)
     args = parser.parse_args()
@@ -54,6 +54,8 @@ if __name__ == "__main__":
 
     if(args.onnx_path.endswith('.onnx') == False):
         print('Please Check Your ONNX Model Path Format')
+    if(args.simplify_path.endswith('.onnx') == False):
+        print('Please Check Your ONNX Simplify Model Path Format')
     if(args.pytorch_path.endswith('.pth') == False):
         print('Please Check Your Pytorch Model Path Format')
     

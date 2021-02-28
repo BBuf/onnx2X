@@ -39,6 +39,9 @@ python .\onnx2pytorch.py ...
 python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path .\models\mobilenetv2-7-simplify.onnx --pytorch_path .\models\mobilenetv2-7.pth --input_shape input:1,3,224,224
 ```
 
+# 模型转换失败处理方法
+
+- 将`onnx2pytorch.py`里面的`model = convert.ConvertModel(onnx_model, debug=False)`这行代码里面的`debug`设置False重新运行模型即可定位到转换失败的OP，然后你可以在工程提出issue或者自己解决然后给本工程PR。
 
 # ONNX2Pytorch
 
@@ -86,7 +89,7 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 
 ### 检测模型
 - [x] yolov5s-simple.onnx
-
+ 
 ### 分割模型
 
 # TODO
