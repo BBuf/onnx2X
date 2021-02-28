@@ -118,3 +118,12 @@ python .\onnx2pytorch.py --onnx_path .\models\zfnet512-9.onnx --simplify_path .\
 {'gpu_0/data_0': [1, 3, 224, 224]}
 mse 5.180448423209617e-18
 ```
+
+## 12. rcnn-ilsvrc13-9.onnx
+
+```sh
+python .\onnx2pytorch.py --onnx_path .\models\rcnn-ilsvrc13-9.onnx --simplify_path .\models\rcnn-ilsvrc13-9-simplify.onnx --pytorch_path .\models\rcnn-ilsvrc13-9.pth --input_shape data_0:1,3,224,224
+
+{'data_0': [1, 3, 224, 224]}
+mse 2.1032064978498965e-14
+```

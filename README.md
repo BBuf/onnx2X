@@ -82,6 +82,7 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [x] inception-v1-9.onnx
 - [x] inception-v2-9.onnx
 - [x] vgg19-caffe2-9.onnx
+- [x] rcnn-ilsvrc13-9.onnx
 
 ### 检测模型
 - [x] yolov5s-simple.onnx
