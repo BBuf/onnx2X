@@ -29,6 +29,7 @@ def add_features_to_output(m: onnx.ModelProto, nodes: List[onnx.NodeProto]) -> N
     """
     for node in nodes:
         for output in node.output:
+            # ONNX模型的graph扩展输出节点，获取所有静态OP的输出和原始输出节点的输出
             m.graph.output.extend([onnx.ValueInfoProto(name=output)])
 
 
@@ -131,17 +132,18 @@ def is_non_deterministic_model(model: onnx.ModelProto) -> bool:
 
 def get_constant_nodes(m: onnx.ModelProto, dynamic_input_shape: bool = False) -> List[onnx.NodeProto]:
     const_nodes = []
+    # 如果节点的name在ONNX的GraphProto的initizlizer数组里面，它就是静态的tensor
     const_tensors = [x.name for x in m.graph.initializer]
+    # 显示的常量OP也加进来
     const_tensors.extend([node.output[0]
                           for node in m.graph.node if node.op_type == 'Constant'])
 
-    # The output shape of some node types is determined by the input value
-    # we consider the output of this node doesn't have constant shape,
-    # so we do not simplify a such node even if the node is Shape op
+    # 一些节点的输出shape是由输入节点决定的，我们认为这个节点的输出shape并不是常量，
+    # 所以我们不需要简化这种节点
     dynamic_tensors = []
     if dynamic_input_shape:
         dynamic_tensors.extend(get_input_names(m))
-
+    # 判断是否为动态OP
     def is_dynamic(node):
         if node.op_type in ['NonMaxSuppression', 'NonZero', 'Unique'] and node.input[0] not in const_tensors:
             return True
@@ -173,6 +175,7 @@ def get_constant_nodes(m: onnx.ModelProto, dynamic_input_shape: bool = False) ->
         elif all([x in const_tensors for x in node.input]) and not is_non_deterministic_node(node):
             const_nodes.append(node)
             const_tensors.extend(node.output)
+    # 深拷贝
     return copy.deepcopy(const_nodes)
 
 
@@ -222,6 +225,7 @@ def forward_for_node_outputs(model: onnx.ModelProto,
     if input_shapes is None:
         input_shapes = {}
     model = copy.deepcopy(model)
+    # nodes 是Graph中所有的静态OP
     add_features_to_output(model, nodes)
     res = forward(model,
                   input_data=input_data,
@@ -240,10 +244,10 @@ def insert_elem(repeated_container, index: int, element):
 def eliminate_const_nodes(model: onnx.ModelProto, const_nodes: List[onnx.NodeProto],
                           res: Tensors) -> onnx.ModelProto:
     """
-    :param model: the original onnx model
-    :param const_nodes: const nodes detected by `get_constant_nodes`
-    :param res: The dict containing all tensors, got by `forward_all`
-    :return: the simplified onnx model. Redundant ops are all removed.
+    :model参数: 原始ONNX模型
+    :const_nodes参数: 使用`get_constant_nodes`获得的静态OP
+    :res参数: 包含所有输出Tensor的字典
+    :return: 简化后的模型. 所有冗余操作都已删除.
     """
     for i, node in enumerate(model.graph.node):
         if node in const_nodes:
@@ -268,11 +272,10 @@ def eliminate_const_nodes(model: onnx.ModelProto, const_nodes: List[onnx.NodePro
 
 def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Optional[Sequence[str]]) -> onnx.ModelProto:
     """
-    :param model: The onnx model.
-    :return: The optimized onnx model.
-    Before simplifying, use this method to generate value_info, which is used in `forward_all`
-    After simplifying, use this method to fold constants generated in previous step into initializer,
-    and eliminate unused constants.
+    :model参数: 待优化的ONXX模型.
+    :return: 优化之后的ONNX模型.
+    简化之前, 使用这个方法产生会在'forward_all'用到的ValueInfo
+    简化之后，使用这个方法去折叠前一步产生的常量到initializer中并且消除没被使用的常量
     """
 
     onnx.checker.check_model(model)
@@ -368,7 +371,7 @@ def infer_shapes(model: onnx.ModelProto) -> onnx.ModelProto:
 
 T = TypeVar('T')
 
-
+# 递归执行func_a和func_b直到模型稳定
 def fixed_point(x: T, func_a: Callable[[T], T], func_b: Callable[[T], T]) -> T:
     """
     Run `func_a` and `func_b` on `x` until func_b(func_a(x)) == x
@@ -427,10 +430,14 @@ def simplify(model: Union[str, onnx.ModelProto],
         input_data = {}
 
     if type(model) == str:
+        # 加载ONNX模型
         model = onnx.load(model)
     assert(isinstance(model, onnx.ModelProto))
+    # 检查ONNX模型格式是否正确，图结构是否完整，节点是否正确等
     onnx.checker.check_model(model)
+    # 深拷贝一份原始ONNX模型
     model_ori = copy.deepcopy(model)
+
 
     input_names = get_input_names(model)
     for input_name, data in input_data.items():
@@ -449,44 +456,53 @@ def simplify(model: Union[str, onnx.ModelProto],
         elif input_name not in input_shapes:
             input_shapes[input_name] = shape
 
+    # 检查核对输入节点
     updated_input_shapes = check_and_update_input_shapes(model, input_shapes)
 
+
     def infer_shapes_and_optimize(model: onnx.ModelProto) -> onnx.ModelProto:
+        # 做ONNX模型节点形状推断
         def infer_shapes_if_applicable(model: onnx.ModelProto) -> onnx.ModelProto:
             if not skip_shape_inference:
                 model = infer_shapes(model)
             return model
-
+        # 对ONNX模型进行optimizer
         def optimize_if_applicable(model: onnx.ModelProto) -> onnx.ModelProto:
             if perform_optimization:
                 model = optimize(model, skip_fuse_bn, skipped_optimizers)
             return model
-
+        # 递归执行infer_shapes_if_applicable和optimize_if_applicable直到模型稳定
         return fixed_point(model, infer_shapes_if_applicable, optimize_if_applicable)
 
     def constant_folding(model: onnx.ModelProto) -> onnx.ModelProto:
+        # 获取模型的常量OP
         const_nodes = get_constant_nodes(
             model, dynamic_input_shape=dynamic_input_shape)
+        # 获取所有的常量OP以及原始输出OP的特征值
         res = forward_for_node_outputs(model,
                                        const_nodes,
                                        input_shapes=updated_input_shapes,
                                        input_data=input_data,
                                        custom_lib=custom_lib)
+        # 清洗那些没有被onnxruntime推理的静态节点
         const_nodes = clean_constant_nodes(const_nodes, res)
+        # 移除常量OP，获得简化后的ONNX模型
         model = eliminate_const_nodes(model, const_nodes, res)
+        # 检查ONNX模型格式是否正确，图结构是否完整，节点是否正确等
         onnx.checker.check_model(model)
         return model
 
+    # 递归执行infer_shapes_and_optimize和constant_folding直到模型稳定
     model = fixed_point(model, infer_shapes_and_optimize, constant_folding)
 
-    # Overwrite model input shape
+    # 重写模型的输入shape
     if not dynamic_input_shape:
         for name, input_shape in updated_input_shapes.items():
             for ipt in model.graph.input:
                 if ipt.name == name:
                     for i, dim in enumerate(ipt.type.tensor_type.shape.dim):
                         dim.dim_value = input_shape[i]
-
+    # 检查核对输入节点
     check_ok = check(model_ori, model, check_n,
                      input_shapes=updated_input_shapes)
 

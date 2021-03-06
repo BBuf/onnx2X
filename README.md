@@ -15,7 +15,7 @@ ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括P
 
 - pytorch >= 1.1.0
 - onnx>=1.8.1
-- onnxruntime>=1.6.0
+-   >=1.6.0
 - onnxoptimizer>=0.2.3
 
 # 使用方法
@@ -68,6 +68,7 @@ python .\onnx2pytorch.py --onnx_path .\models\mobilenetv2-7.onnx --simplify_path
 - [x] Pad2d
 - [x] Split
 - [x] ReduceMean
+- [x] LeakyRelu
 
 ## 已验证支持的模型
 

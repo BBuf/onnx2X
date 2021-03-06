@@ -36,15 +36,14 @@ def convert_operations(onnx_model, batch_dim=0):
     weights = {tensor.name: tensor for tensor in onnx_model.graph.initializer}
 
     for i, node in enumerate(onnx_model.graph.node):
-        # extract only useful inputs
         params = [weights[par_name] for par_name in node.input if par_name in weights]
 
         if node.op_type == "Conv":
             op = convert_layer(node, "Conv", params)
         elif node.op_type == "Relu":
-            op = nn.ReLU(inplace=True)
+            op = nn.ReLU()
         elif node.op_type == "LeakyRelu":
-            op = nn.LeakyReLU(**extract_attributes(node), inplace=True)
+            op = nn.LeakyReLU(**extract_attributes(node))
         elif node.op_type == "Sigmoid":
             op = nn.Sigmoid()
         elif node.op_type == "MaxPool":
@@ -63,7 +62,7 @@ def convert_operations(onnx_model, batch_dim=0):
         elif node.op_type == "Concat":
             op = Concat(**extract_attributes(node))
         elif node.op_type == "Constant":
-            # 常量OP如何解决的问题
+            # 常量OP如何解决的问题，先过一遍ONNX-Simplifier
             op = value_wrapper(torch.from_numpy(extract_attributes(node)["constant"]))
         elif node.op_type == "Reshape":
             shape = list(
