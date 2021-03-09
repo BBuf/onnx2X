@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from onnx import numpy_helper
 
-from onnx2pytorch.operations import BatchNormUnsafe, InstanceNormUnsafe
+from onnx2pytorch.operations import InstanceNormUnsafe
 from onnx2pytorch.convert.attribute import extract_attributes, extract_attr_values
 
 
@@ -93,7 +93,7 @@ def convert_layer(node, layer_type, params=None):
 # BN层的转换
 def convert_batch_norm_layer(node, params):
     kwargs = extract_attributes(node)
-    layer = BatchNormUnsafe  # Input dimension check missing, not possible before forward pass
+    layer = nn.BatchNorm2d()
 
     kwargs["num_features"] = params[0].dims[0]
     # initialize layer and load weights
