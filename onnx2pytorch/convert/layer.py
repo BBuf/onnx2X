@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from onnx import numpy_helper
 
-from onnx2pytorch.operations import InstanceNormUnsafe
 from onnx2pytorch.convert.attribute import extract_attributes, extract_attr_values
 
 
@@ -108,7 +107,7 @@ def convert_batch_norm_layer(node, params):
 def convert_instance_norm_layer(node, params):
     kwargs = extract_attributes(node)
     # Skips input dimension check, not possible before forward pass
-    layer = InstanceNormUnsafe
+    layer = nn.InstanceNorm2d()
 
     kwargs["num_features"] = params[0].dims[0]
     # initialize layer and load weights

@@ -1,5 +1,4 @@
 from .add import Add
-from .instancenorm import InstanceNormUnsafe
 from .cast import Cast
 from .constant import ConstantOfShape
 from .flatten import Flatten
@@ -20,7 +19,6 @@ from .clamp import Clamp
 
 __all__ = [
     "Add",
-    "InstanceNormUnsafe",
     "Cast",
     "ConstantOfShape",
     "Flatten",
