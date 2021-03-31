@@ -1,5 +1,4 @@
-# ONNX2NN
-
+# ONNX2X
 ONNX作为微软的网络模型中间表示被各个框架广泛应用，包括Pytroch，TensorFlow，OneFlow，Keras，Paddle等多种深度学习训练框架。因此，一直在思考一个问题，一个TensorFlow导出来的ONNX模型是否可以借助ONNX被Pytorch框架使用呢？ONNX的理想是作为所有框架的模型的中间交换，那么我们只需要再实现ONNX到各个框架的逆转就可以完成这件事情了。本工程的目的即是尝试支持ONNX转换到各种训练框架，主要为了锻炼算子对齐和更深入的了解ONNX。
 
 # 代码结构
